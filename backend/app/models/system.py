@@ -24,7 +24,7 @@ class ProviderHealth(Base):
     last_success_at = Column(DateTime, nullable=True)
     error_message = Column(Text, nullable=True)
     response_latency_ms = Column(Float, nullable=True)
-    consecutive_failures = Column(Integer, default=0)
+    consecutive_failures = Column(Integer,nullable=False, default=0, server_default="0")
 
 
 class BackgroundTask(Base):

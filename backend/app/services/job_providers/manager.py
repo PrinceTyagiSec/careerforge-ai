@@ -60,7 +60,9 @@ class JobProviderManager:
                 db_health.last_success_at = datetime.datetime.utcnow()
                 db_health.consecutive_failures = 0
             else:
-                db_health.consecutive_failures += 1
+                db_health.consecutive_failures = (
+        db_health.consecutive_failures or 0
+    ) + 1
 
         self.db.commit()
         return results
