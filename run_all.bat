@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 title CareerForge AI
 
 echo ========================================================

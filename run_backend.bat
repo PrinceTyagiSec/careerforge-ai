@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 title CareerForge AI - Backend
 
 echo ========================================================
@@ -20,7 +20,16 @@ if not exist "venv\Scripts\python.exe" (
 
 echo Starting FastAPI server...
 echo.
+
 venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+if errorlevel 1 (
+    echo.
+    echo ========================================================
+    echo ERROR: Backend server stopped with an error.
+    echo ========================================================
+    echo.
+)
 
 pause
 endlocal

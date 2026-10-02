@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 title CareerForge AI - Frontend
 
 echo ========================================================
@@ -21,6 +21,14 @@ if not exist "node_modules" (
 echo Starting Vite development server...
 echo.
 call npm run dev -- --host 127.0.0.1 --port 5173
+
+if errorlevel 1 (
+    echo.
+    echo ========================================================
+    echo ERROR: Frontend server stopped with an error.
+    echo ========================================================
+    echo.
+)
 
 pause
 endlocal
