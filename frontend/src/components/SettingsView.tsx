@@ -6,12 +6,18 @@ export const SettingsView: React.FC = () => {
   const [healthData, setHealthData] = useState<any | null>(null);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+const [adzunaConfigured, setAdzunaConfigured] = useState(false);
+const [adzunaMaskedKey, setAdzunaMaskedKey] = useState('');
 
-  // Credential forms
-  const [adzunaId, setAdzunaId] = useState('');
-  const [adzunaKey, setAdzunaKey] = useState('');
-  const [joobleKey, setJoobleKey] = useState('');
+const [joobleConfigured, setJoobleConfigured] = useState(false);
+const [joobleMaskedKey, setJoobleMaskedKey] = useState('');
+
+const [loading, setLoading] = useState(false);
+
+// Credential forms
+const [adzunaId, setAdzunaId] = useState('');
+const [adzunaKey, setAdzunaKey] = useState('');
+const [joobleKey, setJoobleKey] = useState('');
 
   // Profile fields
   const [headline, setHeadline] = useState('');
@@ -27,15 +33,33 @@ export const SettingsView: React.FC = () => {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const [h, p, t] = await Promise.all([
+      const [h, p, t, credentials] = await Promise.all([
         api.getProvidersHealth(),
         api.getProfile(),
-        api.listBackgroundTasks()
+        api.listBackgroundTasks(),
+        api.getCredentials()
       ]);
+      
       setHealthData(h);
       setProfile(p);
       setTasks(t);
+const adzuna = credentials.find(
+  (c) => c.provider_name === 'adzuna'
+);
 
+if (adzuna) {
+  setAdzunaId(adzuna.app_id_or_user || '');
+  setAdzunaConfigured(adzuna.has_key);
+  setAdzunaMaskedKey(adzuna.masked_key || '');
+}
+const jooble = credentials.find(
+  (c) => c.provider_name === 'jooble'
+);
+
+if (jooble) {
+  setJoobleConfigured(jooble.has_key);
+  setJoobleMaskedKey(jooble.masked_key || '');
+}
       if (p) {
         setHeadline(p.headline || '');
         setLocation(p.location || 'Bengaluru, Karnataka');
@@ -170,35 +194,103 @@ export const SettingsView: React.FC = () => {
               <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>App ID</label>
               <input type="text" className="input" placeholder="Enter Adzuna App ID" value={adzunaId} onChange={(e) => setAdzunaId(e.target.value)} />
             </div>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>App Key</label>
-              <input type="password" className="input" placeholder="Enter Adzuna App Key" value={adzunaKey} onChange={(e) => setAdzunaKey(e.target.value)} />
-            </div>
-            <button onClick={handleSaveAdzuna} className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
-              Save Adzuna Credentials
-            </button>
+<div>
+  <label
+    style={{
+      fontSize: '12px',
+      color: 'var(--text-secondary)',
+      display: 'block',
+      marginBottom: '4px'
+    }}
+  >
+    App Key
+  </label>
+
+  <input
+    type="password"
+    className="input"
+    placeholder={
+      adzunaConfigured
+        ? 'Enter new key to replace existing key'
+        : 'Enter Adzuna App Key'
+    }
+    value={adzunaKey}
+    onChange={(e) => setAdzunaKey(e.target.value)}
+  />
+
+  {adzunaConfigured && (
+    <div
+      style={{
+        fontSize: '11px',
+        color: 'var(--text-muted)',
+        marginTop: '5px'
+      }}
+    >
+      ✓ API key configured {adzunaMaskedKey && `(${adzunaMaskedKey})`}
+    </div>
+  )}
+</div>
+<button
+  onClick={handleSaveAdzuna}
+  className="btn btn-secondary btn-sm"
+  style={{ alignSelf: 'flex-start' }}
+>
+  {adzunaConfigured
+    ? 'Replace Adzuna Credentials'
+    : 'Save Adzuna Credentials'}
+</button>
           </div>
         </div>
 
-        {/* Jooble Config */}
-        <div className="card">
-          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>
-            Jooble API Credentials
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Jooble API Key</label>
-              <input type="password" className="input" placeholder="Enter Jooble API Key" value={joobleKey} onChange={(e) => setJoobleKey(e.target.value)} />
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Jobs are queried with real-time rate limiting, pagination, and multi-signal deduplication.
-            </div>
-            <button onClick={handleSaveJooble} className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
-              Save Jooble Credentials
-            </button>
-          </div>
+{/* Jooble Config */}
+<div className="card">
+  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>
+    Jooble API Credentials
+  </h3>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div>
+      <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+        Jooble API Key
+      </label>
+
+      <input
+        type="password"
+        className="input"
+        placeholder={
+          joobleConfigured
+            ? 'Enter new key to replace existing key'
+            : 'Enter Jooble API Key'
+        }
+        value={joobleKey}
+        onChange={(e) => setJoobleKey(e.target.value)}
+      />
+
+      {joobleConfigured && (
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+          ✓ API key configured
+          {joobleMaskedKey && ` (${joobleMaskedKey})`}
         </div>
-      </div>
+      )}
+    </div>
+
+    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+      Jobs are queried with real-time rate limiting, pagination, and multi-signal deduplication.
+    </div>
+
+    <button
+      onClick={handleSaveJooble}
+      className="btn btn-secondary btn-sm"
+      style={{ alignSelf: 'flex-start' }}
+    >
+      {joobleConfigured
+        ? 'Replace Jooble API Key'
+        : 'Save Jooble Credentials'}
+    </button>
+  </div>
+</div>
+</div>
+
+
 
       {/* Candidate Preferences (India Focus) */}
       <div className="card" style={{ marginBottom: '24px' }}>

@@ -21,6 +21,14 @@ export interface CandidateProfile {
   phone?: string;
 }
 
+export interface ProviderCredential {
+  provider_name: string;
+  app_id_or_user?: string;
+  is_enabled: boolean;
+  has_key: boolean;
+  masked_key: string;
+}
+
 export interface JobItem {
   id: number;
   title: string;
@@ -229,6 +237,7 @@ export const api = {
 
   // Providers & Analytics
   getProvidersHealth: () => apiFetch<any>('/providers/health'),
+  getCredentials: () => apiFetch<ProviderCredential[]>('/providers/credentials'),
   updateCredentials: (data: any) => apiFetch<any>('/providers/credentials', { method: 'POST', body: JSON.stringify(data) }),
   getDashboardAnalytics: () => apiFetch<DashboardAnalytics>('/analytics/dashboard'),
   listBackgroundTasks: () => apiFetch<any[]>('/analytics/tasks'),
