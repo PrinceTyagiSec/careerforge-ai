@@ -71,18 +71,71 @@ class JobProviderManager:
         self,
         keywords: Optional[str] = None,
         location: Optional[str] = "India",
+            remote_status: Optional[str] = None,
+    min_salary: Optional[float] = None,
         page: int = 1,
-        results_per_page: int = 20
+        results_per_page: int = 100
     ) -> List[Job]:
         """
         Queries all available providers concurrently, normalizes, deduplicates,
         and saves fresh jobs to the database.
         """
-        tasks = []
-        for prov in self.providers:
-            tasks.append(prov.search(keywords=keywords, location=location, page=page, results_per_page=results_per_page))
+        from app.models.user import CandidateProfile
+        profile = (
+        self.db.query(CandidateProfile)
+        .filter(CandidateProfile.user_id == 1)
+        .first()
+    )
 
+        if profile:
+            if not location:
+                location = profile.location or "India"
+
+            if not remote_status and profile.remote_preference:
+                if profile.remote_preference in {"Remote", "Hybrid", "On-site"}:
+                    remote_status = profile.remote_preference
+
+            if min_salary is None:
+                min_salary = profile.expected_salary_min
+
+            if not keywords:
+                keywords = profile.target_role or profile.headline
+            
+        tasks = []
+
+        print("\n========== PROVIDER MANAGER DEBUG ==========")
+        print("keywords      :", keywords)
+        print("location      :", location)
+        print("remote_status :", remote_status)
+        print("min_salary    :", min_salary)
+        print("providers     :", [p.provider_name for p in self.providers])
+        print("============================================\n")
+
+        for prov in self.providers:
+            print(f"CALLING PROVIDER: {prov.provider_name}")
+            tasks.append(
+                prov.search(
+                    keywords=keywords,
+                    location=location,
+                    remote_status=remote_status,
+                    min_salary=min_salary,
+                    page=page,
+                    results_per_page=results_per_page
+                )
+            )
         provider_results = await asyncio.gather(*tasks, return_exceptions=True)
+        print("\n========== PROVIDER RESULTS ==========")
+
+        for provider, result in zip(self.providers, provider_results):
+            print(f"PROVIDER: {provider.provider_name}")
+
+            if isinstance(result, Exception):
+                print("ERROR:", repr(result))
+            else:
+                print("RESULT COUNT:", len(result))
+                print("FIRST RESULT:", result[0] if result else "NO RESULTS")
+
+        print("======================================\n")
         all_items: List[ProviderJobItem] = []
         
         for idx, res in enumerate(provider_results):

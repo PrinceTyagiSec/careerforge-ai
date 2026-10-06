@@ -195,12 +195,35 @@ export const api = {
     const query = new URLSearchParams(params).toString();
     return apiFetch<{ total: number; page: number; results: JobItem[] }>(`/jobs?${query}`);
   },
-  searchLiveJobs: (keywords?: string, location?: string) => {
-    const params = new URLSearchParams();
-    if (keywords) params.append('keywords', keywords);
-    if (location) params.append('location', location);
-    return apiFetch<{ count: number; results: JobItem[] }>(`/jobs/search-live?${params.toString()}`, { method: 'POST' });
-  },
+searchLiveJobs: (params?: {
+  keywords?: string;
+  location?: string;
+  remote_status?: string;
+  min_salary?: number;
+}) => {
+  const query = new URLSearchParams();
+
+  if (params?.keywords) {
+    query.append('keywords', params.keywords);
+  }
+
+  if (params?.location) {
+    query.append('location', params.location);
+  }
+
+  if (params?.remote_status) {
+    query.append('remote_status', params.remote_status);
+  }
+
+  if (params?.min_salary !== undefined) {
+    query.append('min_salary', String(params.min_salary));
+  }
+
+  return apiFetch<{ count: number; results: JobItem[] }>(
+    `/jobs/search-live?${query.toString()}`,
+    { method: 'POST' }
+  );
+},
   importJob: (data: any) => apiFetch<any>('/jobs/import', { method: 'POST', body: JSON.stringify(data) }),
   getJobDetail: (id: number) => apiFetch<JobDetail>(`/jobs/${id}`),
   toggleSaveJob: (id: number) => apiFetch<any>(`/jobs/${id}/toggle-save`, { method: 'POST' }),

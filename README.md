@@ -87,8 +87,8 @@ Job listings are normalized and processed before being presented to the user.
 
 ### Job freshness
 
-| State              | Description                  |
-| ------------------ | ---------------------------- |
+| State                | Description                  |
+| -------------------- | ---------------------------- |
 | `Fresh`            | Fresh job listing            |
 | `Recently Updated` | Recently updated listing     |
 | `Possibly Stale`   | Potentially outdated listing |
@@ -259,8 +259,8 @@ Supported export formats:
 
 CareerForge AI currently includes **7 resume templates**:
 
-| Template              | Focus                                                     |
-| --------------------- | --------------------------------------------------------- |
+| Template                    | Focus                                                     |
+| --------------------------- | --------------------------------------------------------- |
 | **ATS Simple**        | Clean single-column resume                                |
 | **Modern**            | Modern layout with balanced spacing                       |
 | **Technical**         | Technical skills and engineering emphasis                 |

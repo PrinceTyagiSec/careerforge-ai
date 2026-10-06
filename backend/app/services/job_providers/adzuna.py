@@ -2,7 +2,7 @@ import time
 import asyncio
 import datetime
 import httpx
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from app.services.job_providers.base import BaseJobProvider, ProviderJobItem
 from app.core.config import settings
 
@@ -29,13 +29,18 @@ class AdzunaProvider(BaseJobProvider):
         keywords: Optional[str] = None,
         location: Optional[str] = "India",
         page: int = 1,
-        results_per_page: int = 20,
+        results_per_page: int = 100,
+            remote_status: Optional[str] = None,
+    min_salary: Optional[float] = None,
         **kwargs
     ) -> List[ProviderJobItem]:
         if not self.app_id or not self.app_key:
             return []
 
-        cache_key = f"{keywords}:{location}:{page}:{results_per_page}"
+        cache_key = (
+    f"{keywords}:{location}:{remote_status}:"
+    f"{min_salary}:{page}:{results_per_page}"
+)
         if cache_key in self._cache:
             ts, cached_results = self._cache[cache_key]
             if time.time() - ts < self.cache_ttl_seconds:
@@ -44,16 +49,41 @@ class AdzunaProvider(BaseJobProvider):
         await self._rate_limit()
 
         endpoint = f"{self.base_url}/{self.country}/search/{page}"
+        print(endpoint)
         params = {
             "app_id": self.app_id,
             "app_key": self.app_key,
-            "results_per_page": min(results_per_page, 50),
-            "content-type": "application/json"
+            "results_per_page": min(results_per_page, 50)
         }
-        if keywords:
-            params["what"] = keywords
-        if location and location.lower() != "india":
+        
+        search_keywords = keywords.strip() if keywords else ""
+
+        if remote_status == "Remote":
+            search_keywords = f"{search_keywords} remote".strip()
+        elif remote_status == "Hybrid":
+            search_keywords = f"{search_keywords} hybrid".strip()
+
+        if search_keywords:
+            params["what"] = search_keywords
+
+        if location and location.lower() not in {"india", "all"}:
             params["where"] = location
+
+        if min_salary is not None:
+            params["salary_min"] = int(min_salary)
+
+            print("\n========== ADZUNA REQUEST ==========")
+            print("keywords      :", keywords)
+            print("location      :", location)
+            print("remote_status :", remote_status)
+            print("min_salary    :", min_salary)
+            print("search_words  :", search_keywords)
+            print("endpoint      :", endpoint)
+            print("params        :", {
+                k: v for k, v in params.items()
+                if k not in {"app_id", "app_key"}
+            })
+            print("====================================\n")
 
         headers = {"User-Agent": "CareerForge-AI/1.0"}
         retries = 3
@@ -62,8 +92,16 @@ class AdzunaProvider(BaseJobProvider):
         for attempt in range(retries):
             try:
                 async with httpx.AsyncClient(timeout=12.0) as client:
+                    print("\n========== ADZUNA REQUEST DEBUG ==========")
+                    print("endpoint:", endpoint)
+                    print("params:", params)
+                    print("=========================================\n")
                     response = await client.get(endpoint, params=params, headers=headers)
-                    
+                    print("\n========== ADZUNA RESPONSE DEBUG ==========")
+                    print("status:", response.status_code)
+                    print("url:", response.url)
+                    print("body:", response.text[:1000])
+                    print("===========================================\n")
                     if response.status_code == 429:
                         # Rate limited
                         await asyncio.sleep(backoff * (attempt + 1))
@@ -114,6 +152,10 @@ class AdzunaProvider(BaseJobProvider):
                         self._cache[cache_key] = (time.time(), results)
                         return results
                     else:
+                        print("\n========== ADZUNA ERROR ==========")
+                        print("STATUS CODE:", response.status_code)
+                        print("RESPONSE:", response.text[:2000])
+                        print("==================================\n")
                         break
             except (httpx.TimeoutException, httpx.RequestError):
                 if attempt < retries - 1:
@@ -165,6 +207,7 @@ class AdzunaProvider(BaseJobProvider):
                         "error_message": f"HTTP {res.status_code}: {res.text[:100]}",
                         "latency_ms": latency
                     }
+
         except Exception as e:
             latency = round((time.time() - start) * 1000, 2)
             return {

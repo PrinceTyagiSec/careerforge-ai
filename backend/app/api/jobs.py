@@ -2,7 +2,7 @@ import json
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc
+from sqlalchemy import or_, and_, func, desc
 
 from app.core.database import get_db
 from app.core.user_helper import get_or_create_default_user
@@ -24,29 +24,147 @@ router = APIRouter(prefix="/jobs", tags=["Jobs"])
 @router.post("/search-live")
 async def search_live_jobs(
     keywords: Optional[str] = Query(None),
-    location: Optional[str] = Query("India"),
+    location: Optional[str] = Query(None),
+    remote_status: Optional[str] = Query(None),
+    min_salary: Optional[float] = Query(None),
     page: int = Query(1, ge=1),
     db: Session = Depends(get_db)
 ):
     """
-    Directly queries configured real-world external job providers (Adzuna, Jooble),
-    normalizes, deduplicates, saves fresh listings, and scores them against candidate profile.
+    Query external job providers using explicit All Jobs filters first.
+    If a filter is not provided, fall back to Candidate Profile / Market Preferences.
     """
+
     user = get_or_create_default_user(db)
+
+    profile = user.profile
+    preferences = user.job_preferences
+
+    # ---------------------------------------------------------
+    # Build effective provider query.
+    #
+    # Explicit All Jobs filters ALWAYS win.
+    # Profile/preferences are only defaults for live discovery.
+    # ---------------------------------------------------------
+
+    effective_keywords = (
+        keywords.strip()
+        if keywords and keywords.strip()
+        else None
+    )
+
+    # Provider keyword fallback priority:
+    # 1. Explicit All Jobs keyword
+    # 2. Candidate Profile target role
+    # 3. Candidate Profile headline
+    # 4. Market Preferences preferred role
+    # 5. Safe default
+
+    if not effective_keywords and profile:
+        effective_keywords = (
+            profile.headline
+            or profile.target_role
+        )
+
+    if not effective_keywords and preferences and preferences.preferred_roles:
+        try:
+            preferred_roles = json.loads(
+                preferences.preferred_roles or "[]"
+            )
+        except Exception:
+            preferred_roles = []
+
+        if preferred_roles:
+            effective_keywords = preferred_roles[0]
+
+    if not effective_keywords:
+        effective_keywords = "Software Engineer"
+
+    # 2. Location
+    effective_location = (
+        location.strip()
+        if location and location.strip()
+        else None
+    )
+
+    if effective_location and effective_location.lower() == "all":
+        effective_location = None
+
+    if not effective_location and profile:
+        effective_location = profile.location
+
+    if effective_location and effective_location.lower() == "all":
+        effective_location = None
+
+    # 3. Remote preference
+    effective_remote_status = (
+        remote_status.strip()
+        if remote_status
+        and remote_status.strip()
+        and remote_status.lower() != "all"
+        else None
+    )
+
+    if not effective_remote_status and profile:
+        if profile.remote_preference in {
+            "Remote",
+            "Hybrid",
+            "On-site"
+        }:
+            effective_remote_status = profile.remote_preference
+
+    if not effective_remote_status and preferences:
+        if preferences.remote_only:
+            effective_remote_status = "Remote"
+
+    # 4. Salary
+    effective_min_salary = min_salary
+
+    if effective_min_salary is None and preferences:
+        effective_min_salary = preferences.min_salary
+
+    if effective_min_salary is None and profile:
+        effective_min_salary = profile.expected_salary_min
+
+    # ---------------------------------------------------------
+    # DEBUG
+    # ---------------------------------------------------------
+
+    print("\n========== LIVE SEARCH EFFECTIVE QUERY ==========")
+    print("explicit keywords :", keywords)
+    print("explicit location :", location)
+    print("profile headline  :", profile.headline if profile else None)
+    print("profile target    :", profile.target_role if profile else None)
+    print("profile location  :", profile.location if profile else None)
+    print("effective keywords:", effective_keywords)
+    print("effective location:", effective_location)
+    print("effective remote  :", effective_remote_status)
+    print("effective salary  :", effective_min_salary)
+    print("=================================================\n")
+
+    # ---------------------------------------------------------
+    # Query external providers
+    # ---------------------------------------------------------
+
     mgr = JobProviderManager(db)
-    
+
     saved_jobs = await mgr.search_and_ingest(
-        keywords=keywords,
-        location=location,
+        keywords=effective_keywords,
+        location=effective_location,
+        remote_status=effective_remote_status,
+        min_salary=effective_min_salary,
         page=page,
         results_per_page=20
     )
 
     # Calculate match for user
     matcher = MatchingEngine(db, user)
+
     results = []
+
     for job in saved_jobs:
         match = matcher.match_job(job)
+
         results.append({
             "id": job.id,
             "title": job.title,
@@ -60,14 +178,28 @@ async def search_live_jobs(
             "freshness_status": job.freshness_status,
             "canonical_url": job.canonical_url,
             "match_score": match.overall_score,
-            "matching_skills": json.loads(match.matching_skills_json or "[]"),
-            "missing_skills": json.loads(match.missing_skills_json or "[]"),
-            "sources": [{"provider_name": s.provider_name, "source_url": s.source_url} for s in job.sources],
+            "matching_skills": json.loads(
+                match.matching_skills_json or "[]"
+            ),
+            "missing_skills": json.loads(
+                match.missing_skills_json or "[]"
+            ),
+            "sources": [
+                {
+                    "provider_name": s.provider_name,
+                    "source_url": s.source_url
+                }
+                for s in job.sources
+            ],
             "published_at": job.published_at
         })
 
     # Sort by match score descending
-    results.sort(key=lambda x: x["match_score"] or 0, reverse=True)
+    results.sort(
+        key=lambda x: x["match_score"] or 0,
+        reverse=True
+    )
+
     return {
         "count": len(results),
         "page": page,
@@ -124,6 +256,7 @@ def list_jobs(
     location: Optional[str] = Query(None),
     remote_status: Optional[str] = Query(None),
     min_salary: Optional[float] = Query(None),
+    experience: Optional[str] = Query(None),
     freshness: Optional[str] = Query(None),
     min_match: Optional[float] = Query(None),
     saved_only: bool = Query(False),
@@ -139,16 +272,77 @@ def list_jobs(
         query = query.filter(or_(Job.title.ilike(kw), Job.company_name.ilike(kw), Job.description.ilike(kw)))
 
     if location and location.lower() != "all":
-        query = query.filter(Job.location.ilike(f"%{location}%"))
+        normalized_location = location.strip().lower()
+
+        if normalized_location == "remote india":
+            query = query.filter(
+                and_(
+                    func.lower(Job.remote_status) == "remote",
+                    func.lower(Job.country) == "india"
+                )
+            )
+
+        elif normalized_location in {"noida", "noida / ncr"}:
+            query = query.filter(
+                or_(
+                    Job.location.ilike("%noida%"),
+                    Job.city.ilike("%noida%"),
+                    Job.location.ilike("%ncr%"),
+                    Job.city.ilike("%ncr%")
+                )
+            )
+
+        else:
+            query = query.filter(
+                Job.location.ilike(f"%{location}%")
+            )
 
     if remote_status and remote_status.lower() != "all":
-        query = query.filter(Job.remote_status == remote_status)
+        query = query.filter(
+            func.lower(Job.remote_status) == remote_status.strip().lower()
+        )
 
     if min_salary:
         query = query.filter(or_(Job.salary_min >= min_salary, Job.salary_max >= min_salary))
 
+    # Experience requirement filter
+    if experience and experience.lower() != "all":
+        experience_key = experience.strip().lower()
+
+        if experience_key == "0-1":
+            query = query.filter(
+                Job.experience_min_years <= 1,
+                Job.experience_max_years >= 0
+            )
+
+        elif experience_key == "1-3":
+            query = query.filter(
+                Job.experience_min_years <= 3,
+                Job.experience_max_years >= 1
+            )
+
+        elif experience_key == "3-5":
+            query = query.filter(
+                Job.experience_min_years <= 5,
+                Job.experience_max_years >= 3
+            )
+
+        elif experience_key == "5-8":
+            query = query.filter(
+                Job.experience_min_years <= 8,
+                Job.experience_max_years >= 5
+            )
+
+        elif experience_key == "8+":
+            query = query.filter(
+                Job.experience_max_years >= 8
+            )
+
+
     if freshness and freshness.lower() != "all":
-        query = query.filter(Job.freshness_status == freshness)
+        query = query.filter(
+            func.lower(Job.freshness_status) == freshness.strip().lower()
+        )
 
     jobs = query.order_by(desc(Job.discovered_at)).all()
 

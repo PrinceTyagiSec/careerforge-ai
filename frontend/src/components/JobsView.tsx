@@ -21,12 +21,13 @@ export const JobsView: React.FC<JobsViewProps> = ({ onSelectJob, onOpenImport })
   const [location, setLocation] = useState('All');
   const [remoteStatus, setRemoteStatus] = useState('All');
   const [freshness, setFreshness] = useState('All');
+  const [experience, setExperience] = useState('All');
   const [minMatch, setMinMatch] = useState<number>(0);
   const [savedOnly, setSavedOnly] = useState(false);
 
   useEffect(() => {
     fetchJobs();
-  }, [keywords, location, remoteStatus, freshness, minMatch, savedOnly]);
+  }, [keywords, location, remoteStatus,experience, freshness, minMatch, savedOnly]);
 
   const fetchJobs = async () => {
     try {
@@ -35,6 +36,7 @@ export const JobsView: React.FC<JobsViewProps> = ({ onSelectJob, onOpenImport })
       if (keywords) params.keywords = keywords;
       if (location !== 'All') params.location = location;
       if (remoteStatus !== 'All') params.remote_status = remoteStatus;
+      if (experience !== 'All') params.experience = experience;
       if (freshness !== 'All') params.freshness = freshness;
       if (minMatch > 0) params.min_match = minMatch;
       if (savedOnly) params.saved_only = true;
@@ -48,19 +50,28 @@ export const JobsView: React.FC<JobsViewProps> = ({ onSelectJob, onOpenImport })
     }
   };
 
-  const handleLiveProviderSearch = async () => {
-    try {
-      setLiveSearching(true);
-      const searchLoc = location !== 'All' ? location : 'India';
-      await api.searchLiveJobs(keywords || undefined, searchLoc);
-      await fetchJobs();
-    } catch (err) {
-      console.error('Live search error:', err);
-      alert('External provider query failed or rate-limited. Operating with current local database jobs.');
-    } finally {
-      setLiveSearching(false);
-    }
-  };
+const handleLiveProviderSearch = async () => {
+  try {
+    setLiveSearching(true);
+
+    await api.searchLiveJobs({
+      keywords: keywords || undefined,
+      location: location !== 'All' ? location : undefined,
+      remote_status: remoteStatus !== 'All'
+        ? remoteStatus
+        : undefined,
+    });
+
+    await fetchJobs();
+  } catch (err) {
+    console.error('Live search error:', err);
+    alert(
+      'External provider query failed or rate-limited. Operating with current local database jobs.'
+    );
+  } finally {
+    setLiveSearching(false);
+  }
+};
 
   const handleToggleSave = async (e: React.MouseEvent, jobId: number) => {
     e.stopPropagation();
@@ -101,7 +112,7 @@ export const JobsView: React.FC<JobsViewProps> = ({ onSelectJob, onOpenImport })
 
       {/* Filter Toolbar */}
       <div className="card" style={{ padding: '18px', marginBottom: '24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'grid',   gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr auto', gap: '12px', alignItems: 'center' }}>
           {/* Keyword Search */}
           <div style={{ position: 'relative' }}>
             <Search size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
@@ -117,7 +128,7 @@ export const JobsView: React.FC<JobsViewProps> = ({ onSelectJob, onOpenImport })
 
           {/* Indian Locations */}
           <select className="select" value={location} onChange={(e) => setLocation(e.target.value)}>
-            <option value="All">All Locations</option>
+            <option value="All">Location: Any</option>
             <option value="Remote India">Remote India</option>
             <option value="Bengaluru">Bengaluru</option>
             <option value="Noida">Noida / NCR</option>
@@ -130,7 +141,7 @@ export const JobsView: React.FC<JobsViewProps> = ({ onSelectJob, onOpenImport })
 
           {/* Remote status */}
           <select className="select" value={remoteStatus} onChange={(e) => setRemoteStatus(e.target.value)}>
-            <option value="All">Work Type: All</option>
+            <option value="All">Work Type: Any</option>
             <option value="Remote">Remote</option>
             <option value="Hybrid">Hybrid</option>
             <option value="On-site">On-site</option>
@@ -142,6 +153,19 @@ export const JobsView: React.FC<JobsViewProps> = ({ onSelectJob, onOpenImport })
             <option value="Fresh">Fresh (&le; 5 days)</option>
             <option value="Recently Updated">Recently Updated</option>
           </select>
+
+<select
+  className="select"
+  value={experience}
+  onChange={(e) => setExperience(e.target.value)}
+>
+  <option value="All">Experience: Any</option>
+  <option value="0-1">0–1 yrs</option>
+  <option value="1-3">1–3 yrs</option>
+  <option value="3-5">3–5 yrs</option>
+  <option value="5-8">5–8 yrs</option>
+  <option value="8+">8+ yrs</option>
+</select>
 
           {/* Saved Toggle */}
           <button

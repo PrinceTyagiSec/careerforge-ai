@@ -29,7 +29,9 @@ class BaseJobProvider(abc.ABC):
         keywords: Optional[str] = None,
         location: Optional[str] = "India",
         page: int = 1,
-        results_per_page: int = 20,
+        results_per_page: int = 100,
+        remote_status: Optional[str] = None,
+    min_salary: Optional[float] = None,
         **kwargs
     ) -> List[ProviderJobItem]:
         """
