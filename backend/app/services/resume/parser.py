@@ -38,6 +38,22 @@ class ResumeParser:
 
         # 2. Section Partitioning
         sections_detected = cls._partition_sections(lines)
+        print("\n========== DEBUG RESUME ==========")
+        print("RAW TEXT:")
+        print(resume.raw_text)
+
+        print("\nLINES:")
+        for i, line in enumerate(lines):
+            print(i, repr(line))
+
+        print("\nSECTIONS:")
+        for key, value in sections_detected.items():
+            print("\nSECTION:", key)
+            print("HEADING:", value.get("heading"))
+            for line in value.get("lines", []):
+                print("  ", repr(line))
+
+        print("==================================\n")
 
         # Clear existing parsed entities for this resume
         db.query(ResumeSection).filter(ResumeSection.resume_id == resume.id).delete()
@@ -90,6 +106,14 @@ class ResumeParser:
 
         # 5. Extract Experience
         exp_lines = sections_detected.get("experience", {}).get("lines", [])
+        print("\n========== EXPERIENCE DEBUG ==========")
+        print("exp_lines =", exp_lines)
+
+        parsed_experiences = cls._parse_experience_blocks(exp_lines)
+
+        print("parsed_experiences =", parsed_experiences)
+        print("experience count =", len(parsed_experiences))
+        print("======================================\n")
         parsed_experiences = cls._parse_experience_blocks(exp_lines)
         for idx, exp in enumerate(parsed_experiences):
             exp_obj = Experience(
@@ -218,58 +242,203 @@ class ResumeParser:
         }
 
     @classmethod
-    def _partition_sections(cls, lines: List[str]) -> Dict[str, Dict[str, Any]]:
-        sections = {}
-        current_section = "summary"
-        sections[current_section] = {"heading": "Professional Summary", "lines": []}
+    def _partition_sections(
+        cls,
+        lines: List[str]
+    ) -> Dict[str, Dict[str, Any]]:
 
-        for line in lines:
-            normalized_line = re.sub(r'[^a-zA-Z\s]', '', line).strip().lower()
-            detected = None
-            for sec_key, headers in cls.SECTION_HEADERS.items():
-                if normalized_line in headers or any(normalized_line.startswith(h + " ") for h in headers):
-                    detected = sec_key
-                    break
+        sections: Dict[str, Dict[str, Any]] = {}
+
+        current_section = "summary"
+        sections[current_section] = {
+            "heading": "Professional Summary",
+            "lines": []
+        }
+
+        # Build normalized lookup
+        header_lookup = {}
+
+        for section_type, headers in cls.SECTION_HEADERS.items():
+            for header in headers:
+                normalized = re.sub(
+                    r"[^a-z0-9\s&]",
+                    "",
+                    header.lower()
+                ).strip()
+
+                normalized = re.sub(r"\s+", " ", normalized)
+
+                header_lookup[normalized] = section_type
+
+        for raw_line in lines:
+            line = raw_line.strip()
+
+            if not line:
+                continue
+
+            normalized_line = re.sub(
+                r"[^a-z0-9\s&]",
+                "",
+                line.lower()
+            ).strip()
+
+            normalized_line = re.sub(
+                r"\s+",
+                " ",
+                normalized_line
+            )
+
+            detected = header_lookup.get(normalized_line)
 
             if detected:
                 current_section = detected
-                if current_section not in sections:
-                    sections[current_section] = {"heading": line.title(), "lines": []}
-            else:
-                sections[current_section]["lines"].append(line)
 
-        return {k: v for k, v in sections.items() if v["lines"]}
+                if current_section not in sections:
+                    sections[current_section] = {
+                        "heading": line,
+                        "lines": []
+                    }
+
+                continue
+
+            sections[current_section]["lines"].append(line)
+
+        return {
+            key: value
+            for key, value in sections.items()
+            if value["lines"]
+        }
 
     @staticmethod
-    def _parse_experience_blocks(lines: List[str]) -> List[Dict[str, Any]]:
+    def _parse_experience_blocks(
+        lines: List[str]
+    ) -> List[Dict[str, Any]]:
+
         results = []
+
+        date_pattern = re.compile(
+            r"""
+            (?P<start>
+                (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)
+                [a-z]*\s+\d{4}
+                |
+                \d{4}
+            )
+            \s*
+            [–—\-]
+            \s*
+            (?P<end>
+                Present
+                |
+                (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)
+                [a-z]*\s+\d{4}
+                |
+                \d{4}
+            )
+            """,
+            re.IGNORECASE | re.VERBOSE
+        )
+
         current = None
 
-        for line in lines:
-            # Check if this line looks like a job title or company
-            if re.search(r'(developer|engineer|manager|consultant|analyst|specialist|lead|architect|intern)', line, re.IGNORECASE):
+        for i, line in enumerate(lines):
+
+            clean_line = line.strip()
+
+            if not clean_line:
+                continue
+
+            # Remove bullet marker
+            clean_line = re.sub(
+                r"^[•●▪◦\-\*]\s*",
+                "",
+                clean_line
+            ).strip()
+
+            date_match = date_pattern.search(clean_line)
+
+            if date_match:
+
+                # Finalize previous experience
                 if current:
                     results.append(current)
-                parts = re.split(r'[-|•at,]', line)
-                title = parts[0].strip()
-                comp = parts[1].strip() if len(parts) > 1 else "Tech Organization"
-                current = {"title": title, "company": comp, "bullets": [], "description": line}
-            elif current:
-                clean_bullet = line.lstrip("•-*• \t")
-                if clean_bullet:
-                    current["bullets"].append(clean_bullet)
+
+                start_date = date_match.group("start")
+                end_date = date_match.group("end")
+
+                # Everything before the date is metadata
+                metadata = clean_line[:date_match.start()].strip()
+
+                # If date is on its own line, use previous lines
+                if not metadata:
+                    previous = lines[max(0, i - 2):i]
+
+                    previous = [
+                        re.sub(
+                            r"^[•●▪◦\-\*]\s*",
+                            "",
+                            p.strip()
+                        )
+                        for p in previous
+                        if p.strip()
+                    ]
+
+                    if len(previous) >= 2:
+                        title = previous[-2]
+                        company = previous[-1]
+                    elif len(previous) == 1:
+                        title = previous[0]
+                        company = "Not specified"
+                    else:
+                        title = "Professional Experience"
+                        company = "Not specified"
+
+                else:
+                    # Handle:
+                    # Job Title | Company | May 2026 - Jul 2026
+                    parts = re.split(
+                        r"\s+[|•]\s+|\s+[–—]\s+",
+                        metadata
+                    )
+
+                    title = parts[0].strip()
+
+                    company = (
+                        parts[1].strip()
+                        if len(parts) > 1
+                        else "Not specified"
+                    )
+
+                current = {
+                    "title": title,
+                    "company": company,
+                    "location": "India",
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "is_current": end_date.lower() == "present",
+                    "bullets": [],
+                    "description": ""
+                }
+
+                continue
+
+            # Detect location after creating experience
+            if current:
+                # Don't treat obvious location lines as bullets
+                if re.search(
+                    r"(India|USA|United States|UK|Canada|Australia)$",
+                    clean_line,
+                    re.IGNORECASE
+                ) and len(clean_line.split()) <= 8:
+
+                    current["location"] = clean_line
+                    continue
+
+                current["bullets"].append(clean_line)
 
         if current:
             results.append(current)
 
-        if not results and lines:
-            # Fallback single block
-            results.append({
-                "title": "Software Engineer",
-                "company": "Professional Experience",
-                "bullets": lines[:5],
-                "description": "\n".join(lines[:5])
-            })
         return results
 
     @staticmethod
