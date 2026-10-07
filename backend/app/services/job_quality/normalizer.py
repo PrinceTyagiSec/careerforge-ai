@@ -29,47 +29,302 @@ INDIAN_CITIES = {
 
 # Skill dictionary: Canonical name -> list of aliases & synonyms
 SKILL_TAXONOMY: Dict[str, Dict[str, Any]] = {
-    "Python": {"category": "Language", "aliases": ["python", "python3", "py"]},
-    "FastAPI": {"category": "Framework", "aliases": ["fastapi", "fast api", "fast-api"]},
-    "Django": {"category": "Framework", "aliases": ["django", "django rest framework", "drf"]},
-    "Flask": {"category": "Framework", "aliases": ["flask"]},
-    "JavaScript": {"category": "Language", "aliases": ["javascript", "js", "ecmascript", "es6", "vanilla js"]},
-    "TypeScript": {"category": "Language", "aliases": ["typescript", "ts"]},
-    "React": {"category": "Framework", "aliases": ["react", "react.js", "reactjs", "react js"]},
-    "Node.js": {"category": "Framework", "aliases": ["node", "node.js", "nodejs", "node js"]},
-    "Express.js": {"category": "Framework", "aliases": ["express", "express.js", "expressjs"]},
-    "Next.js": {"category": "Framework", "aliases": ["next.js", "nextjs", "next js"]},
-    "Vue.js": {"category": "Framework", "aliases": ["vue", "vue.js", "vuejs"]},
-    "Angular": {"category": "Framework", "aliases": ["angular", "angularjs", "angular 2+"]},
-    "SQL": {"category": "Database", "aliases": ["sql", "rdbms", "relational database"]},
-    "PostgreSQL": {"category": "Database", "aliases": ["postgresql", "postgres", "psql"]},
-    "MySQL": {"category": "Database", "aliases": ["mysql", "mariadb"]},
-    "MongoDB": {"category": "Database", "aliases": ["mongodb", "mongo", "nosql"]},
-    "Redis": {"category": "Database", "aliases": ["redis", "in-memory cache"]},
-    "SQLite": {"category": "Database", "aliases": ["sqlite", "sqlite3"]},
-    "Docker": {"category": "DevOps", "aliases": ["docker", "containerization", "containers"]},
-    "Kubernetes": {"category": "DevOps", "aliases": ["kubernetes", "k8s"]},
-    "AWS": {"category": "Cloud", "aliases": ["aws", "amazon web services", "ec2", "s3", "lambda"]},
-    "GCP": {"category": "Cloud", "aliases": ["gcp", "google cloud", "google cloud platform"]},
-    "Azure": {"category": "Cloud", "aliases": ["azure", "microsoft azure"]},
-    "Git": {"category": "Tool", "aliases": ["git", "github", "gitlab", "bitbucket"]},
-    "CI/CD": {"category": "DevOps", "aliases": ["ci/cd", "ci cd", "continuous integration", "github actions", "jenkins"]},
-    "REST API": {"category": "Architecture", "aliases": ["rest", "restful", "rest api", "rest apis", "restful api"]},
-    "GraphQL": {"category": "Architecture", "aliases": ["graphql", "graph ql"]},
-    "Linux": {"category": "System", "aliases": ["linux", "ubuntu", "debian", "centos", "bash", "shell scripting"]},
-    "Machine Learning": {"category": "AI/ML", "aliases": ["machine learning", "ml", "deep learning", "ai", "artificial intelligence"]},
-    "PyTorch": {"category": "AI/ML", "aliases": ["pytorch", "torch"]},
-    "TensorFlow": {"category": "AI/ML", "aliases": ["tensorflow", "tf", "keras"]},
-    "NLP": {"category": "AI/ML", "aliases": ["nlp", "natural language processing", "llm", "llms", "large language models"]},
-    "HTML": {"category": "Frontend", "aliases": ["html", "html5"]},
-    "CSS": {"category": "Frontend", "aliases": ["css", "css3", "sass", "scss", "tailwind", "bootstrap"]},
-    "Cybersecurity": {"category": "Security", "aliases": ["cybersecurity", "cyber security", "infosec", "penetration testing", "vulnerability"]},
-    "Java": {"category": "Language", "aliases": ["java", "core java", "j2ee"]},
-    "Spring Boot": {"category": "Framework", "aliases": ["spring boot", "springboot", "spring framework"]},
-    "C++": {"category": "Language", "aliases": ["c++", "cpp"]},
-    "Golang": {"category": "Language", "aliases": ["go", "golang"]},
-    "PHP": {"category": "Language", "aliases": ["php", "laravel"]},
-    "C#": {"category": "Language", "aliases": ["c#", "csharp", ".net", "dotnet", "asp.net"]},
+    # Programming languages
+    "Python": {
+        "category": "Language",
+        "aliases": ["python", "python3", "py"],
+    },
+    "JavaScript": {
+        "category": "Language",
+        "aliases": ["javascript", "js", "ecmascript", "es6", "vanilla js"],
+    },
+    "TypeScript": {
+        "category": "Language",
+        "aliases": ["typescript", "ts"],
+    },
+    "Java": {
+        "category": "Language",
+        "aliases": ["java", "core java", "j2ee"],
+    },
+    "C++": {
+        "category": "Language",
+        "aliases": ["c++", "cpp"],
+    },
+    "C#": {
+        "category": "Language",
+        "aliases": ["c#", "csharp"],
+    },
+    "Golang": {
+        "category": "Language",
+        "aliases": ["go", "golang"],
+    },
+    "PHP": {
+        "category": "Language",
+        "aliases": ["php"],
+    },
+    "Bash": {
+        "category": "Language",
+        "aliases": ["bash", "shell scripting", "shell script"],
+    },
+    "SQL": {
+        "category": "Database",
+        "aliases": ["sql", "rdbms", "relational database"],
+    },
+
+    # Backend / frontend
+    "FastAPI": {
+        "category": "Framework",
+        "aliases": ["fastapi", "fast api", "fast-api"],
+    },
+    "Django": {
+        "category": "Framework",
+        "aliases": ["django", "django rest framework", "drf"],
+    },
+    "Flask": {
+        "category": "Framework",
+        "aliases": ["flask"],
+    },
+    "React": {
+        "category": "Framework",
+        "aliases": ["react", "react.js", "reactjs", "react js"],
+    },
+    "Node.js": {
+        "category": "Framework",
+        "aliases": ["node", "node.js", "nodejs", "node js"],
+    },
+    "Express.js": {
+        "category": "Framework",
+        "aliases": ["express", "express.js", "expressjs"],
+    },
+    "Next.js": {
+        "category": "Framework",
+        "aliases": ["next.js", "nextjs", "next js"],
+    },
+    "Vue.js": {
+        "category": "Framework",
+        "aliases": ["vue", "vue.js", "vuejs"],
+    },
+    "Angular": {
+        "category": "Framework",
+        "aliases": ["angular", "angularjs"],
+    },
+
+    # Databases
+    "PostgreSQL": {
+        "category": "Database",
+        "aliases": ["postgresql", "postgres", "psql"],
+    },
+    "MySQL": {
+        "category": "Database",
+        "aliases": ["mysql", "mariadb"],
+    },
+    "MongoDB": {
+        "category": "Database",
+        "aliases": ["mongodb", "mongo", "nosql"],
+    },
+    "Redis": {
+        "category": "Database",
+        "aliases": ["redis", "in-memory cache"],
+    },
+    "SQLite": {
+        "category": "Database",
+        "aliases": ["sqlite", "sqlite3"],
+    },
+
+    # DevOps / Cloud
+    "Docker": {
+        "category": "DevOps",
+        "aliases": ["docker", "containerization", "containers"],
+    },
+    "Kubernetes": {
+        "category": "DevOps",
+        "aliases": ["kubernetes", "k8s"],
+    },
+    "AWS": {
+        "category": "Cloud",
+        "aliases": ["aws", "amazon web services", "ec2", "s3", "lambda"],
+    },
+    "GCP": {
+        "category": "Cloud",
+        "aliases": ["gcp", "google cloud", "google cloud platform"],
+    },
+    "Azure": {
+        "category": "Cloud",
+        "aliases": ["azure", "microsoft azure"],
+    },
+    "Git": {
+        "category": "Tool",
+        "aliases": ["git"],
+    },
+    "GitHub": {
+        "category": "Tool",
+        "aliases": ["github"],
+    },
+    "GitLab": {
+        "category": "Tool",
+        "aliases": ["gitlab"],
+    },
+    "CI/CD": {
+        "category": "DevOps",
+        "aliases": [
+            "ci/cd",
+            "ci cd",
+            "continuous integration",
+            "github actions",
+            "jenkins",
+        ],
+    },
+
+    # Architecture
+    "REST API": {
+        "category": "Architecture",
+        "aliases": ["rest", "restful", "rest api", "rest apis", "restful api"],
+    },
+    "GraphQL": {
+        "category": "Architecture",
+        "aliases": ["graphql", "graph ql"],
+    },
+
+    # Security
+    "Cybersecurity": {
+        "category": "Security",
+        "aliases": [
+            "cybersecurity",
+            "cyber security",
+            "infosec",
+        ],
+    },
+    "Penetration Testing": {
+        "category": "Security",
+        "aliases": [
+            "penetration testing",
+            "penetration test",
+            "pentesting",
+            "pen testing",
+            "pentest",
+        ],
+    },
+    "Vulnerability Assessment": {
+        "category": "Security",
+        "aliases": [
+            "vulnerability assessment",
+            "vulnerability assessments",
+        ],
+    },
+    "Vulnerability Management": {
+        "category": "Security",
+        "aliases": [
+            "vulnerability management",
+        ],
+    },
+    "Nmap": {
+        "category": "Security Tool",
+        "aliases": ["nmap"],
+    },
+    "Metasploit": {
+        "category": "Security Tool",
+        "aliases": ["metasploit", "metasploit framework"],
+    },
+    "Burp Suite": {
+        "category": "Security Tool",
+        "aliases": ["burp suite", "burpsuite"],
+    },
+    "Nikto": {
+        "category": "Security Tool",
+        "aliases": ["nikto"],
+    },
+    "OWASP ZAP": {
+        "category": "Security Tool",
+        "aliases": [
+            "owasp zap",
+            "owasp zap proxy",
+            "zaproxy",
+            "zap proxy",
+        ],
+    },
+    "Gobuster": {
+        "category": "Security Tool",
+        "aliases": ["gobuster"],
+    },
+    "Wireshark": {
+        "category": "Security Tool",
+        "aliases": ["wireshark"],
+    },
+    "CyberChef": {
+        "category": "Security Tool",
+        "aliases": ["cyberchef", "cyber chef"],
+    },
+    "SIEM": {
+        "category": "Security",
+        "aliases": ["siem", "siem tools"],
+    },
+    "Firewalls": {
+        "category": "Security",
+        "aliases": ["firewall", "firewalls"],
+    },
+    "OWASP Top 10": {
+        "category": "Security",
+        "aliases": ["owasp top 10", "owasp top ten"],
+    },
+    "CVE Analysis": {
+        "category": "Security",
+        "aliases": ["cve analysis", "cve analysis and assessment"],
+    },
+
+    # Operating systems
+    "Linux": {
+        "category": "System",
+        "aliases": ["linux", "ubuntu", "debian", "centos"],
+    },
+    "Windows": {
+        "category": "System",
+        "aliases": ["windows", "windows os", "microsoft windows"],
+    },
+    "Kali Linux": {
+    "aliases": ["kali linux"],
+    "category": "System",
+},
+
+    # AI / ML
+    "Machine Learning": {
+        "category": "AI/ML",
+        "aliases": ["machine learning", "ml", "deep learning"],
+    },
+    "PyTorch": {
+        "category": "AI/ML",
+        "aliases": ["pytorch", "torch"],
+    },
+    "TensorFlow": {
+        "category": "AI/ML",
+        "aliases": ["tensorflow", "tf", "keras"],
+    },
+    "NLP": {
+        "category": "AI/ML",
+        "aliases": [
+            "nlp",
+            "natural language processing",
+            "llm",
+            "llms",
+            "large language models",
+        ],
+    },
+
+    # Frontend
+    "HTML": {
+        "category": "Frontend",
+        "aliases": ["html", "html5"],
+    },
+    "CSS": {
+        "category": "Frontend",
+        "aliases": [
+            "css",
+            "css3",
+            "sass",
+            "scss",
+            "tailwind",
+            "bootstrap",
+        ],
+    },
 }
 
 # Inverted index for fast normalization lookup
@@ -100,26 +355,44 @@ class JobNormalizer:
     @staticmethod
     def extract_skills_from_text(text: str) -> List[Dict[str, str]]:
         """
-        Extract canonical skills from job description or resume text.
-        Uses boundary regex to avoid false positives (e.g. 'go' vs 'Google').
+        Extract canonical skills from text using the centralized taxonomy.
+
+        Longer/more specific aliases are checked first so that:
+            "penetration testing" -> Penetration Testing
+        instead of:
+            "penetration testing" -> Cybersecurity
         """
+
         found = {}
-        text_lower = f" {text.lower()} "
-        
-        for alias, canonical in ALIAS_TO_CANONICAL.items():
-            # Use word boundaries for short words, substring for multi-word
-            if len(alias) <= 3:
-                pattern = rf"(?:\b|\s){re.escape(alias)}(?:\b|\s|[,\.;:\)])"
-            else:
-                pattern = rf"(?:\b){re.escape(alias)}(?:\b)"
-                
-            if re.search(pattern, text_lower):
+
+        if not text:
+            return []
+
+        text_normalized = re.sub(r"\s+", " ", text.lower()).strip()
+
+        # Check longer aliases first.
+        aliases = sorted(
+            ALIAS_TO_CANONICAL.items(),
+            key=lambda item: len(item[0]),
+            reverse=True,
+        )
+
+        for alias, canonical in aliases:
+            escaped_alias = re.escape(alias)
+
+            # Word boundaries prevent things such as:
+            # "go" matching "google".
+            pattern = rf"(?<!\w){escaped_alias}(?!\w)"
+
+            if re.search(pattern, text_normalized, re.IGNORECASE):
                 category = SKILL_TAXONOMY[canonical]["category"]
+
                 found[canonical] = {
                     "name": canonical,
                     "canonical_name": canonical,
-                    "category": category
+                    "category": category,
                 }
+
         return list(found.values())
 
     @staticmethod

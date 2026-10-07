@@ -16,14 +16,133 @@ class ResumeParser:
     education, and atomic claims for fact protection.
     """
     SECTION_HEADERS = {
-        "summary": ["summary", "professional summary", "about me", "profile", "objective", "career objective"],
-        "skills": ["skills", "technical skills", "core competencies", "technologies", "skill set", "tools & technologies"],
-        "experience": ["experience", "work experience", "employment history", "professional experience", "work history"],
-        "education": ["education", "academic background", "educational qualifications", "academics"],
-        "projects": ["projects", "personal projects", "academic projects", "key projects"],
-        "certifications": ["certifications", "licenses & certifications", "credentials", "certificates"],
-        "achievements": ["achievements", "honors & awards", "awards", "accomplishments"]
-    }
+    "summary": [
+        "summary",
+        "professional summary",
+        "career summary",
+        "about me",
+        "profile",
+        "professional profile",
+        "objective",
+        "career objective",
+    ],
+
+    "skills": [
+        "skills",
+        "technical skills",
+        "core competencies",
+        "technologies",
+        "technical expertise",
+        "skill set",
+        "tools & technologies",
+        "tools and technologies",
+        "key skills",
+    ],
+
+    "experience": [
+        "experience",
+        "work experience",
+        "employment history",
+        "professional experience",
+        "work history",
+        "career history",
+        "professional background",
+    ],
+
+    "education": [
+        "education",
+        "academic background",
+        "educational qualifications",
+        "educational background",
+        "academics",
+    ],
+
+    "projects": [
+        "projects",
+        "personal projects",
+        "academic projects",
+        "key projects",
+        "selected projects",
+    ],
+
+    "certifications": [
+        "certifications",
+        "licenses & certifications",
+        "licenses and certifications",
+        "credentials",
+        "certificates",
+        "professional certifications",
+    ],
+
+    "achievements": [
+        "achievements",
+        "honors & awards",
+        "honors and awards",
+        "awards",
+        "accomplishments",
+        "recognition",
+    ],
+
+    "languages": [
+        "languages",
+        "language",
+        "spoken languages",
+        "language proficiency",
+    ],
+
+    "publications": [
+        "publications",
+        "research publications",
+        "papers",
+        "research papers",
+    ],
+
+    "volunteering": [
+        "volunteering",
+        "volunteer experience",
+        "volunteer work",
+        "community involvement",
+    ],
+    "security_experience": [
+    "ctf & lab experience",
+    "ctf and lab experience",
+    "capture the flag",
+    "capture the flag experience",
+    "lab experience",
+    "security lab experience",
+    "security labs",
+    "hands-on security experience",
+    "offensive security experience",
+],
+
+"security_research": [
+    "vulnerability research",
+    "security research",
+    "vulnerability research & responsible disclosure",
+    "responsible disclosure",
+    "bug bounty",
+    "bug bounty experience",
+    "vulnerability disclosures",
+],
+
+    "activities": [
+        "activities",
+        "extracurricular activities",
+        "extracurricular",
+        "professional activities",
+    ],
+
+    "interests": [
+        "interests",
+        "hobbies",
+        "personal interests",
+    ],
+
+    "references": [
+        "references",
+        "professional references",
+    ],
+}
 
     @classmethod
     def parse_and_populate(cls, db: Session, resume: Resume, user: User) -> Dict[str, Any]:
@@ -114,7 +233,6 @@ class ResumeParser:
         print("parsed_experiences =", parsed_experiences)
         print("experience count =", len(parsed_experiences))
         print("======================================\n")
-        parsed_experiences = cls._parse_experience_blocks(exp_lines)
         for idx, exp in enumerate(parsed_experiences):
             exp_obj = Experience(
                 resume_id=resume.id,
@@ -190,6 +308,84 @@ class ResumeParser:
                 verification_status="Verified",
                 confidence=1.0
             )
+            db.add(claim)
+
+        # Certifications
+        cert_lines = sections_detected.get("certifications", {}).get("lines", [])
+        parsed_certifications = cls._parse_certification_blocks(cert_lines)
+
+        for cert_idx, cert_data in enumerate(parsed_certifications):
+            certification = Certification(
+                resume_id=resume.id,
+                name=cert_data["name"],
+                issuing_organization=cert_data["issuing_organization"] or "Unknown",
+                issue_date=cert_data.get("issue_date"),
+                expiration_date=cert_data.get("expiration_date"),
+                credential_url=cert_data.get("credential_url"),
+            )
+
+            db.add(certification)
+            db.flush()
+
+            claim = Claim(
+                resume_id=resume.id,
+                category="certification",
+                statement=cert_data["name"],
+                source_section="Certifications",
+                source_snippet=" | ".join(
+                    value
+                    for value in [
+                        cert_data.get("name"),
+                        cert_data.get("issuing_organization"),
+                        cert_data.get("issue_date"),
+                    ]
+                    if value
+                ),
+                verification_status="Extracted",
+                confidence=1.0,
+            )
+
+            db.add(claim)
+
+        # Achievements
+        achievement_lines = (
+    sections_detected.get("achievements", {}).get("lines", [])
+    or sections_detected.get("security_research", {}).get("lines", [])
+)
+        parsed_achievements = cls._parse_achievement_blocks(achievement_lines)
+
+        for achievement_idx, achievement_data in enumerate(parsed_achievements):
+            achievement = Achievement(
+                resume_id=resume.id,
+                title=achievement_data["title"],
+                description=achievement_data.get("description") or None,
+                date=achievement_data.get("date"),
+            )
+
+            db.add(achievement)
+            db.flush()
+
+            claim = Claim(
+                resume_id=resume.id,
+                category="achievement",
+                statement=achievement_data["title"],
+                source_section=(
+    "Achievements"
+    if sections_detected.get("achievements", {}).get("lines")
+    else "Security Research"
+),
+                source_snippet=(
+                    achievement_data["title"]
+                    + (
+                        " - " + achievement_data["description"]
+                        if achievement_data.get("description")
+                        else ""
+                    )
+                ),
+                verification_status="Extracted",
+                confidence=1.0,
+            )
+
             db.add(claim)
 
         # 8. Create or Update Default ResumeVersion
@@ -309,12 +505,337 @@ class ResumeParser:
             if value["lines"]
         }
 
+    @classmethod
+    def _parse_certification_blocks(
+        cls,
+        lines: List[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        Parse certification entries generically.
+
+        Expected loose patterns:
+            Certification Name
+            Issuing Organization
+            Date
+
+        or:
+            Certification Name - Issuing Organization
+            Date
+
+        or:
+            Certification Name | Issuing Organization | Date
+
+        The parser does not depend on any specific certification name.
+        """
+        certifications: List[Dict[str, Any]] = []
+
+        date_pattern = re.compile(
+            r"""
+            \b
+            (?:
+                Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|
+                May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|
+                Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?
+            )
+            \s+\d{4}
+            |
+            \b\d{4}\b
+            """,
+            re.IGNORECASE | re.VERBOSE
+        )
+
+        url_pattern = re.compile(
+            r"https?://\S+|www\.\S+",
+            re.IGNORECASE
+        )
+
+        cleaned_lines = [
+            line.strip()
+            for line in lines
+            if line.strip() and not re.fullmatch(r"\d+\s*/\s*\d+", line.strip())
+        ]
+
+        i = 0
+
+        while i < len(cleaned_lines):
+            line = cleaned_lines[i]
+
+            credential_url = None
+            url_match = url_pattern.search(line)
+
+            if url_match:
+                credential_url = url_match.group(0).rstrip(".,;")
+                line = url_pattern.sub("", line).strip(" -|,")
+            
+            issue_date = None
+            expiration_date = None
+
+            date_matches = list(date_pattern.finditer(line))
+
+            if date_matches:
+                if len(date_matches) >= 2:
+                    issue_date = date_matches[0].group(0)
+                    expiration_date = date_matches[1].group(0)
+                else:
+                    issue_date = date_matches[0].group(0)
+
+                line = date_pattern.sub("", line).strip(" -|,")
+            
+            if not line:
+                i += 1
+                continue
+
+            name = ""
+            issuing_organization = ""
+
+            # Pattern:
+            # Certification Name - Organization
+            # Certification Name | Organization
+            separator_match = re.split(r"\s+[|–—-]\s+|\s*\|\s*", line, maxsplit=1)
+
+            if len(separator_match) == 2:
+                name = separator_match[0].strip(" -|–—")
+                issuing_organization = separator_match[1].strip(" -|–—")
+            else:
+                name = line
+                issuing_organization = ""
+
+                # If the next line is short and looks like an organization,
+                # treat it as the issuer.
+                if i + 1 < len(cleaned_lines):
+                    next_line = cleaned_lines[i + 1]
+
+                    next_date = date_pattern.fullmatch(next_line)
+                    next_url = url_pattern.fullmatch(next_line)
+
+                    if not next_date and not next_url:
+                        if len(next_line.split()) <= 8:
+                            issuing_organization = next_line.lstrip("—–- ").strip()
+                            i += 1
+
+                if i + 1 < len(cleaned_lines):
+                    next_line = cleaned_lines[i + 1]
+
+                    if not issue_date:
+                        next_date_match = date_pattern.search(next_line)
+                        if next_date_match:
+                            issue_date = next_date_match.group(0)
+                            i += 1
+
+                    if not credential_url:
+                        next_url_match = url_pattern.search(next_line)
+                        if next_url_match:
+                            credential_url = next_url_match.group(0).rstrip(".,;")
+                            i += 1
+
+            if name:
+                certifications.append({
+                    "name": name,
+                    "issuing_organization": issuing_organization,
+                    "issue_date": issue_date,
+                    "expiration_date": expiration_date,
+                    "credential_url": credential_url,
+                })
+
+            i += 1
+
+        return certifications
+
+
+    @classmethod
+    def _parse_achievement_blocks(
+        cls,
+        lines: List[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        Parse generic achievement / award / research entries.
+
+        Supports structures such as:
+
+            Achievement Title
+            Organization
+            Date
+            • Description that may wrap
+            onto multiple lines.
+            • Another description.
+
+            Next Achievement Title
+            Organization
+            Date
+            • Description.
+
+        The parser uses structural signals rather than
+        hard-coded achievement names.
+        """
+
+        achievements: List[Dict[str, Any]] = []
+
+        date_pattern = re.compile(
+            r"""
+            (?:
+                (?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|
+                May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|
+                Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}
+                |
+                \d{4}
+            )
+            """,
+            re.IGNORECASE | re.VERBOSE
+        )
+
+        bullet_pattern = re.compile(r"^[•●▪◦*-]\s*")
+
+        cleaned_lines = [
+            line.strip()
+            for line in lines
+            if line.strip()
+            and not re.fullmatch(r"\d+\s*/\s*\d+", line.strip())
+        ]
+
+        def is_date_line(value: str) -> bool:
+            return bool(date_pattern.fullmatch(value.strip()))
+
+        def looks_like_entry_start(index: int) -> bool:
+            """
+            Detect whether a non-bullet line starts a new achievement.
+
+            A new achievement normally has:
+                title
+                organization
+                date
+
+            This prevents wrapped bullet lines from being mistaken
+            for new achievement titles.
+            """
+            if index >= len(cleaned_lines):
+                return False
+
+            candidate = cleaned_lines[index]
+
+            if bullet_pattern.match(candidate):
+                return False
+
+            if index + 1 >= len(cleaned_lines):
+                return False
+
+            next_line = cleaned_lines[index + 1]
+
+            # Strong signal:
+            # title -> organization -> date
+            if index + 2 < len(cleaned_lines):
+                third_line = cleaned_lines[index + 2]
+
+                if (
+                    not bullet_pattern.match(next_line)
+                    and is_date_line(third_line)
+                ):
+                    return True
+
+            # Also allow:
+            # title -> date
+            if is_date_line(next_line):
+                return True
+
+            return False
+
+        index = 0
+
+        while index < len(cleaned_lines):
+            # Skip unexpected non-entry lines until a structural
+            # achievement start is found.
+            if not looks_like_entry_start(index):
+                index += 1
+                continue
+
+            title = cleaned_lines[index]
+            index += 1
+
+            organization = None
+            date_value = None
+            description_parts: List[str] = []
+
+            # Optional organization line
+            if (
+                index < len(cleaned_lines)
+                and not bullet_pattern.match(cleaned_lines[index])
+                and not is_date_line(cleaned_lines[index])
+            ):
+                organization = cleaned_lines[index]
+                index += 1
+
+            # Optional date line
+            if (
+                index < len(cleaned_lines)
+                and is_date_line(cleaned_lines[index])
+            ):
+                date_value = cleaned_lines[index]
+                index += 1
+
+            # Collect description and wrapped bullet lines.
+            while index < len(cleaned_lines):
+                current_line = cleaned_lines[index]
+
+                # A structural title after the current achievement
+                # means this achievement is finished.
+                if (
+                    not bullet_pattern.match(current_line)
+                    and looks_like_entry_start(index)
+                ):
+                    break
+
+                if bullet_pattern.match(current_line):
+                    bullet_text = bullet_pattern.sub(
+                        "",
+                        current_line
+                    ).strip()
+
+                    if bullet_text:
+                        description_parts.append(bullet_text)
+
+                else:
+                    # Wrapped continuation of the previous bullet.
+                    if description_parts:
+                        description_parts.append(current_line)
+
+                index += 1
+
+            description = " ".join(
+                part.strip()
+                for part in description_parts
+                if part.strip()
+            ).strip()
+
+            if organization:
+                description = (
+                    f"{organization}. {description}"
+                    if description
+                    else organization
+                )
+
+            achievements.append({
+                "title": title,
+                "description": description or None,
+                "date": date_value,
+            })
+
+        return achievements
+
     @staticmethod
     def _parse_experience_blocks(
         lines: List[str]
     ) -> List[Dict[str, Any]]:
+        """
+        Parse professional experience entries from layout-extracted resume lines.
 
-        results = []
+        Handles:
+        - title / company / date / location on separate lines
+        - date ranges such as "May 2026 – Jul 2026"
+        - PDF-wrapped bullet lines
+        - semantic subsections such as "CTF & Lab Experience"
+        - non-experience sections such as "Languages"
+        """
+
+        results: List[Dict[str, Any]] = []
 
         date_pattern = re.compile(
             r"""
@@ -325,7 +846,7 @@ class ResumeParser:
                 \d{4}
             )
             \s*
-            [–—\-]
+            [–—-]
             \s*
             (?P<end>
                 Present
@@ -339,75 +860,153 @@ class ResumeParser:
             re.IGNORECASE | re.VERBOSE
         )
 
-        current = None
+        bullet_pattern = re.compile(
+            r"^[•●▪◦‣⁃*-]\s*"
+        )
 
-        for i, line in enumerate(lines):
+        # These are headings inside the Professional Experience section,
+        # but they are NOT normal employment entries.
+        non_employment_headings = {
+            "ctf & lab experience",
+            "ctf and lab experience",
+            "languages",
+            "certifications",
+            "certificates",
+            "projects",
+            "education",
+            "skills",
+            "achievements",
+        }
 
-            clean_line = line.strip()
+        def clean_line(value: str) -> str:
+            value = value.strip()
+            value = bullet_pattern.sub("", value)
+            return value.strip()
 
-            if not clean_line:
+        def is_location_line(value: str) -> bool:
+            value = value.strip()
+
+            if len(value.split()) > 8:
+                return False
+
+            location_pattern = re.compile(
+                r"""
+                ^
+                (?:
+                    [A-Za-z .'-]+,\s*[A-Za-z .'-]+(?:,\s*[A-Za-z .'-]+)?
+                    |
+                    (?:India|USA|United States|UK|Canada|Australia)
+                )
+                $
+                """,
+                re.IGNORECASE | re.VERBOSE
+            )
+
+            return bool(location_pattern.fullmatch(value))
+
+        def finalize_current(current: Optional[Dict[str, Any]]) -> None:
+            if not current:
+                return
+
+            # Remove accidental empty bullets.
+            current["bullets"] = [
+                bullet.strip()
+                for bullet in current.get("bullets", [])
+                if bullet.strip()
+            ]
+
+            if current["title"] or current["company"]:
+                results.append(current)
+
+        current: Optional[Dict[str, Any]] = None
+        pending_bullet: Optional[str] = None
+
+        i = 0
+
+        while i < len(lines):
+            raw_line = lines[i].strip()
+
+            if not raw_line:
+                i += 1
                 continue
 
-            # Remove bullet marker
-            clean_line = re.sub(
-                r"^[•●▪◦\-\*]\s*",
-                "",
-                clean_line
-            ).strip()
+            line = clean_line(raw_line)
+            normalized = re.sub(r"\s+", " ", line).strip().lower()
 
-            date_match = date_pattern.search(clean_line)
+            # Stop parsing Professional Experience when another semantic
+            # subsection begins.
+            if normalized in non_employment_headings:
+                if pending_bullet and current:
+                    current["bullets"].append(pending_bullet)
+                    pending_bullet = None
+
+                finalize_current(current)
+                current = None
+
+                # Everything after this heading belongs to another subsection.
+                # Do not attempt to parse it as employment.
+                break
+
+            date_match = date_pattern.search(line)
 
             if date_match:
+                if pending_bullet and current:
+                    current["bullets"].append(pending_bullet)
+                    pending_bullet = None
 
-                # Finalize previous experience
-                if current:
-                    results.append(current)
+                # A date line marks the end of the metadata for an experience.
+                start_date = date_match.group("start").strip()
+                end_date = date_match.group("end").strip()
 
-                start_date = date_match.group("start")
-                end_date = date_match.group("end")
+                # Everything before the date may contain title/company.
+                metadata = line[:date_match.start()].strip()
 
-                # Everything before the date is metadata
-                metadata = clean_line[:date_match.start()].strip()
-
-                # If date is on its own line, use previous lines
-                if not metadata:
-                    previous = lines[max(0, i - 2):i]
-
-                    previous = [
-                        re.sub(
-                            r"^[•●▪◦\-\*]\s*",
-                            "",
-                            p.strip()
+                if metadata:
+                    parts = [
+                        part.strip()
+                        for part in re.split(
+                            r"\s+[|]\s+|\s+[–—-]\s+",
+                            metadata
                         )
-                        for p in previous
-                        if p.strip()
+                        if part.strip()
                     ]
 
-                    if len(previous) >= 2:
-                        title = previous[-2]
-                        company = previous[-1]
-                    elif len(previous) == 1:
-                        title = previous[0]
+                    title = parts[0] if parts else "Professional Experience"
+                    company = parts[1] if len(parts) > 1 else "Not specified"
+
+                else:
+                    # Expected layout:
+                    #
+                    # Job Title
+                    # Company
+                    # May 2026 – Jul 2026
+                    #
+                    # Therefore use the two lines immediately preceding
+                    # the date.
+                    previous_lines = []
+
+                    j = i - 1
+
+                    while j >= 0 and len(previous_lines) < 2:
+                        previous = clean_line(lines[j])
+
+                        if previous:
+                            previous_lines.insert(0, previous)
+
+                        j -= 1
+
+                    if len(previous_lines) >= 2:
+                        title = previous_lines[-2]
+                        company = previous_lines[-1]
+                    elif len(previous_lines) == 1:
+                        title = previous_lines[0]
                         company = "Not specified"
                     else:
                         title = "Professional Experience"
                         company = "Not specified"
 
-                else:
-                    # Handle:
-                    # Job Title | Company | May 2026 - Jul 2026
-                    parts = re.split(
-                        r"\s+[|•]\s+|\s+[–—]\s+",
-                        metadata
-                    )
-
-                    title = parts[0].strip()
-
-                    company = (
-                        parts[1].strip()
-                        if len(parts) > 1
-                        else "Not specified"
-                    )
+                # If we already had an experience, finalize it.
+                finalize_current(current)
 
                 current = {
                     "title": title,
@@ -420,58 +1019,338 @@ class ResumeParser:
                     "description": ""
                 }
 
+                i += 1
                 continue
 
-            # Detect location after creating experience
-            if current:
-                # Don't treat obvious location lines as bullets
-                if re.search(
-                    r"(India|USA|United States|UK|Canada|Australia)$",
-                    clean_line,
-                    re.IGNORECASE
-                ) and len(clean_line.split()) <= 8:
+            # Nothing can be attached to an experience until its date line
+            # has been encountered.
+            if not current:
+                i += 1
+                continue
 
-                    current["location"] = clean_line
-                    continue
+            # Location normally follows the date.
+            if not current["bullets"] and is_location_line(line):
+                current["location"] = line
+                i += 1
+                continue
 
-                current["bullets"].append(clean_line)
+            has_bullet_marker = bool(bullet_pattern.match(raw_line))
 
-        if current:
-            results.append(current)
+            if has_bullet_marker:
+                # Finish the previous wrapped bullet.
+                if pending_bullet:
+                    current["bullets"].append(pending_bullet)
+
+                pending_bullet = line
+            else:
+                # A non-bullet line immediately after a bullet is normally
+                # a PDF-wrapped continuation of that bullet.
+                if pending_bullet:
+                    pending_bullet = f"{pending_bullet} {line}".strip()
+                else:
+                    # Preserve non-bullet descriptive text when present.
+                    if line:
+                        pending_bullet = line
+
+            i += 1
+
+        if pending_bullet and current:
+            current["bullets"].append(pending_bullet)
+
+        finalize_current(current)
 
         return results
 
     @staticmethod
     def _parse_education_blocks(lines: List[str]) -> List[Dict[str, Any]]:
         results = []
-        for line in lines:
-            if re.search(r'(b\.tech|bachelor|master|m\.tech|degree|university|institute|college|b\.e|bca|mca)', line, re.IGNORECASE):
-                results.append({
-                    "institution": line,
-                    "degree": "Bachelor of Technology / Degree",
-                    "field": "Computer Science & Engineering"
-                })
-        if not results and lines:
+
+        degree_patterns = [
+            r"\bb\.?\s*tech\b",
+            r"\bb\.?\s*e\.?\b",
+            r"\bbca\b",
+            r"\bm\.?\s*tech\b",
+            r"\bmca\b",
+            r"\bbachelor\b",
+            r"\bmaster\b",
+            r"\bph\.?\s*d\.?\b",
+            r"\bdiploma\b",
+            r"\bassociate\b",
+        ]
+
+        month_pattern = (
+            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+            r"[a-z]*"
+        )
+
+        def is_degree_line(value: str) -> bool:
+            return any(
+                re.search(pattern, value, re.IGNORECASE)
+                for pattern in degree_patterns
+            )
+
+        def is_date_line(value: str) -> bool:
+            value = value.strip()
+
+            return bool(
+                re.search(
+                    rf"\b{month_pattern}\s+\d{{4}}\b"
+                    rf"(?:\s*[–-]\s*"
+                    rf"(?:Present|\b{month_pattern}\s+\d{{4}}\b))?",
+                    value,
+                    re.IGNORECASE,
+                )
+            )
+
+        def is_location_line(value: str) -> bool:
+            value = value.strip()
+
+            if len(value.split()) > 8:
+                return False
+
+            return bool(
+                re.fullmatch(
+                    r"[A-Za-z .'-]+,\s*[A-Za-z .'-]+"
+                    r"(?:,\s*[A-Za-z .'-]+)?",
+                    value,
+                )
+            )
+
+        def is_institution_line(value: str) -> bool:
+            value_lower = value.lower()
+
+            institution_words = (
+                "university",
+                "institute",
+                "institution",
+                "college",
+                "school",
+                "academy",
+                "vidyapeeth",
+                "polytechnic",
+            )
+
+            return any(word in value_lower for word in institution_words)
+
+        def split_dates(value: str):
+            match = re.search(
+                rf"({month_pattern}\s+\d{{4}})"
+                rf"\s*[–-]\s*"
+                rf"(Present|{month_pattern}\s+\d{{4}})",
+                value,
+                re.IGNORECASE,
+            )
+
+            if match:
+                return match.group(1).strip(), match.group(2).strip()
+
+            single_match = re.search(
+                rf"\b({month_pattern}\s+\d{{4}})\b",
+                value,
+                re.IGNORECASE,
+            )
+
+            if single_match:
+                return single_match.group(1).strip(), ""
+
+            return "", ""
+
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+
+            if not line:
+                i += 1
+                continue
+
+            # An education record starts with a recognizable degree.
+            if not is_degree_line(line):
+                i += 1
+                continue
+
+            degree_lines = [line]
+            institution = ""
+            location = ""
+            start_date = ""
+            end_date = ""
+
+            # Collect this education block until another degree starts.
+            block = []
+            j = i + 1
+
+            while j < len(lines):
+                current = lines[j].strip()
+
+                if not current:
+                    j += 1
+                    continue
+
+                if is_degree_line(current):
+                    break
+
+                block.append(current)
+                j += 1
+
+            # First identify metadata lines.
+            date_index = None
+
+            for index, value in enumerate(block):
+                if is_date_line(value):
+                    start_date, end_date = split_dates(value)
+                    date_index = index
+                    break
+
+            for value in block:
+                if is_institution_line(value):
+                    institution = value
+                    break
+
+            for value in block:
+                if is_location_line(value):
+                    location = value
+                    break
+
+            # If the institution wasn't recognized by its name,
+            # use the first non-date/non-location line before the date.
+            if not institution:
+                search_end = date_index if date_index is not None else len(block)
+
+                for value in block[:search_end]:
+                    if not is_date_line(value) and not is_location_line(value):
+                        institution = value
+                        break
+
+            # Any text before the institution is a possible wrapped
+            # continuation of the degree.
+            if institution:
+                institution_index = block.index(institution)
+
+                for value in block[:institution_index]:
+                    if (
+                        not is_date_line(value)
+                        and not is_location_line(value)
+                        and value != institution
+                    ):
+                        degree_lines.append(value)
+
+            degree = " ".join(
+                part.strip()
+                for part in degree_lines
+                if part.strip()
+            )
+
             results.append({
-                "institution": lines[0],
-                "degree": "Graduate Degree",
-                "field": "Engineering / Technology"
+                "institution": institution or "Unknown Institution",
+                "degree": degree,
+                "field": "",
+                "start_date": start_date,
+                "end_date": end_date,
+                "location": location,
             })
+
+            i = j
+
         return results
 
     @staticmethod
     def _parse_project_blocks(lines: List[str]) -> List[Dict[str, Any]]:
         results = []
+
+        def is_date_range(value: str) -> bool:
+            return bool(
+                re.fullmatch(
+                    r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+                    r"[a-z]*\s+\d{4}\s*[–-]\s*"
+                    r"(?:Present|"
+                    r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+                    r"[a-z]*\s+\d{4})",
+                    value.strip(),
+                    re.IGNORECASE,
+                )
+            )
+
+        def is_bullet(value: str) -> bool:
+            return value.lstrip().startswith(("•", "-", "*"))
+
         current = None
-        for line in lines:
-            if line.isupper() or len(line) < 40 and not line.startswith(("•", "-", "*")):
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+
+            if not line:
+                i += 1
+                continue
+
+            # Look ahead for the project date.
+            # The project title/subtitle may occupy multiple lines.
+            date_index = None
+
+            for look_ahead in range(0, 4):
+                if i + look_ahead < len(lines):
+                    candidate = lines[i + look_ahead].strip()
+
+                    if is_date_range(candidate):
+                        date_index = i + look_ahead
+                        break
+
+                    if is_bullet(candidate):
+                        break
+
+            # A new project starts when a date is found within the next
+            # few lines and the current line is not a bullet.
+            if date_index is not None and not is_bullet(line):
                 if current:
                     results.append(current)
-                current = {"title": line, "bullets": [], "technologies": []}
-            elif current:
-                clean = line.lstrip("•-*• \t")
+
+                title = line
+                description_parts = []
+
+                # Everything between title and date is the project
+                # subtitle/description.
+                for k in range(i + 1, date_index):
+                    value = lines[k].strip()
+
+                    if value:
+                        description_parts.append(value)
+
+                date_value = lines[date_index].strip()
+
+                date_parts = re.split(r"\s*[–-]\s*", date_value, maxsplit=1)
+
+                current = {
+                    "title": title,
+                    "description": " ".join(description_parts),
+                    "bullets": [],
+                    "technologies": [],
+                    "start_date": date_parts[0].strip(),
+                    "end_date": date_parts[1].strip() if len(date_parts) > 1 else "",
+                }
+
+                i = date_index + 1
+                continue
+
+            if current:
+                clean = line.lstrip("•-*• \t").strip()
+
                 if clean:
-                    current["bullets"].append(clean)
+                    if is_bullet(line):
+                        # Start a new bullet.
+                        current["bullets"].append(clean)
+                    elif current["bullets"]:
+                        # PDF line wrapping: append continuation text
+                        # to the previous bullet instead of creating
+                        # another bullet.
+                        current["bullets"][-1] += " " + clean
+                    elif not current["description"]:
+                        current["description"] = clean
+                    else:
+                        current["description"] += " " + clean
+
+            i += 1
+
         if current:
             results.append(current)
+
         return results

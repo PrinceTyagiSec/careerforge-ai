@@ -124,6 +124,26 @@ def get_resume_detail(resume_id: int, db: Session = Depends(get_db)):
             "id": p.id, "title": p.title, "description": p.description,
             "bullets": json.loads(p.bullets_json or "[]")
         } for p in projects],
+        "certifications": [
+    {
+        "id": certification.id,
+        "name": certification.name,
+        "issuing_organization": certification.issuing_organization,
+        "issue_date": certification.issue_date,
+        "expiration_date": certification.expiration_date,
+        "credential_url": certification.credential_url,
+    }
+    for certification in resume.certifications
+],
+"achievements": [
+    {
+        "id": achievement.id,
+        "title": achievement.title,
+        "description": achievement.description,
+        "date": achievement.date,
+    }
+    for achievement in resume.achievements
+],
         "sections": [{
             "id": sec.id, "section_type": sec.section_type, "heading": sec.heading,
             "order_index": sec.order_index, "content": sec.content, "is_enabled": sec.is_enabled

@@ -37,6 +37,20 @@ class ProjectSchema(BaseModel):
     bullets: List[str] = []
     url: Optional[str] = None
 
+class CertificationSchema(BaseModel):
+    id: Optional[int] = None
+    name: str
+    issuing_organization: str
+    issue_date: Optional[str] = None
+    expiration_date: Optional[str] = None
+    credential_url: Optional[str] = None
+
+class AchievementSchema(BaseModel):
+    id: Optional[int] = None
+    title: str
+    description: Optional[str] = None
+    date: Optional[str] = None
+
 class SectionUpdate(BaseModel):
     heading: Optional[str] = None
     content: Optional[str] = None
@@ -67,6 +81,8 @@ class ResumeDetailResponse(BaseModel):
     experiences: List[ExperienceSchema]
     educations: List[EducationSchema]
     projects: List[ProjectSchema]
+    certifications: List[CertificationSchema]
+    achievements: List[AchievementSchema]
     claims: List[ClaimResponse]
     created_at: datetime.datetime
 
